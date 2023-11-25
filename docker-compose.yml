@@ -1,0 +1,25 @@
+version: '3.9'
+services:
+  smart-money-bot:
+    image: smart-money-bot:latest
+    restart: always
+    env_file:
+      - .env.development
+    environment:
+      - NODE_ENV=development
+    command: yarn start:dev
+    ports:
+      - '50054:50054'
+    depends_on:
+      - postgres
+  postgres:
+    image: postgres:14.5-alpine
+    restart: always
+    env_file:
+      - database.env
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres_dat:/var/lib/postgresql/data
+volumes:
+  postgres_dat:
