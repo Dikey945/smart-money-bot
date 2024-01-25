@@ -129,40 +129,20 @@ export class EthereumService implements OnModuleInit {
     console.log(decodedPath)
   }
   private async checkTransaction(txHash: Hash): Promise<void> {
-    if (this.transactionDetailsCache.has("0x74446a3bed06c3371cda798a6ddd32d9bdbe03a87435d31756fcbf9e9731c459")) {
+    if (this.transactionDetailsCache.has(txHash)) {
       return; // Skip if already processed
     }
-    // console.log("txHash", txHash)
     try {
-      const transaction = await this.retryWithExponentialBackoff(() => this.mainnetProvider.getTransaction('0xcf032f7fa5898ed335d53c3e074eef10723c74a8e6540655427d7ab399f754e6'));
-      console.log({transaction})
+      const transaction = await this.retryWithExponentialBackoff(
+        () => this.mainnetProvider.getTransaction(txHash));
       if(this.isUniswapTransaction(transaction.data)) {
         console.log("Uniswap transaction detected")
       }
-      console.log("transaction", transaction)
       const txn_url = `https://goerli.etherscan.io/tx/${txHash}`;
       const address = transaction.from.startsWith('0x') ? this.formatAddress(transaction.from) : transaction.from;
-      console.log("txn_url", txn_url)
       const transactionDetails = await this.parseEtherscan(txn_url, address);
-      console.log("transactionDetails", transactionDetails.data);
-      console.log("transaction", transaction)
-      // const abi = await this.fetchContractABI(transaction.to);
-      // this.abIDecoder.addABI(abi)
-      // const data = this.abIDecoder.decodeMethod(transaction.data);
-      // console.log(JSON.stringify(data, null, 2))
-      // const innerData = this.abIDecoder.decodeMethod(data.params[1].value[0])
-      // console.log(data.params[1].value[0])
-      // console.log("========InerData========")
-      // console.log(JSON.stringify(innerData, null, 2))
-      // const data = this.abIDecoder.decodeMethod(transaction.data);
-      // console.log('ABI', abi);
-      // this.contractInterface = new ethers.Interface(abi)
-      // const message = this.contractInterface.parseTransaction({
-      //   data: transaction.data,
-      // })
-      // const params = message.args.params
-      // const path = params.path
-      // this.decodePath(path)
+      this.notifyUsers(transaction, transactionDetails);
+
 
 
 
@@ -223,21 +203,22 @@ export class EthereumService implements OnModuleInit {
     this.monitoredAddresses.delete(address);
   }
 
-  private notifyUsers(transaction: ethers.TransactionResponse, transactionDetails: any): void {
+  private notifyUsers(transaction: ethers.TransactionResponse, transactionDetails: TransactionDetails): void {
     const txHash = transaction.hash;
     const explorerLink = `https://goerli.etherscan.io/tx/${txHash}`;
     const addressShortcut = `${transaction.from.slice(0, 5)}...${transaction.from.slice(-5)}`;
     const addressLink = `https://goerli.etherscan.io/address/${transaction.from}`;
+    const contractLink = `https://goerli.etherscan.io/address/${transactionDetails.tokenContract}`;
 
 
     let alertMessage = "";
 
-    if (transactionDetails.buyToken === 'ETH' || transactionDetails.buyToken === 'WETH') {
+    if (!transactionDetails.isBuyTransaction) {
       // This is a sell transaction
-      alertMessage = `🔴Sell transaction\n\nAddress [${addressShortcut}](${addressLink}) sold ${transactionDetails.sellTokenAmount} ${transactionDetails.sellToken} for ${transactionDetails.buyTokenAmount} ${transactionDetails.buyToken}. For more detailed information, follow this [link](${explorerLink}).`;
+      alertMessage = `🔴Sell transaction\n\nAddress [${addressShortcut}](${addressLink}) sold ${transactionDetails.sellTokenAmount} [${transactionDetails.sellToken}](${contractLink}) for ${transactionDetails.buyTokenAmount} ${transactionDetails.buyToken}. For more detailed information, follow this [link](${explorerLink}).`;
     } else {
       // This is a buy transaction
-      alertMessage = `🟢Buy transaction\n\nAddress [${addressShortcut}](${addressLink}) bought ${transactionDetails.buyTokenAmount} ${transactionDetails.buyToken} for ${transactionDetails.sellTokenAmount} ${transactionDetails.sellToken}. For more detailed information, follow this [link](${explorerLink}).`;
+      alertMessage = `🟢Buy transaction\n\nAddress [${addressShortcut}](${addressLink}) bought ${transactionDetails.buyTokenAmount} [${transactionDetails.buyToken}](${contractLink}) for ${transactionDetails.sellTokenAmount} ${transactionDetails.sellToken}. For more detailed information, follow this [link](${explorerLink}).`;
     }
 
     this.walletBotService.sendMessageToAllUsers(alertMessage);
