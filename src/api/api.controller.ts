@@ -16,4 +16,13 @@ export class ApiController {
     return this.apiService.createClientGroup(body);
   }
 
+  @Get('/users')
+  async getAllUsers() {
+    return this.apiService.getAllUsersWithChannels();
+  }
+
+  @Post('/address')
+  async createAddress(@Body() body: any) {
+    return this.apiService.addAddress(body.address, body.description);
+  }
 }

@@ -11,7 +11,7 @@ export interface createClientGroupRequest {
   channelId?: number;
   channelName?: string;
   link?: string;
-  counter?: string;
+  counter?: number;
   maxFollowerValue?: number;
   ownerId?: number;
 }

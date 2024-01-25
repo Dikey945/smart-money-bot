@@ -14,13 +14,16 @@ export class ClientGroup extends EntityHelper {
   link?: string;
 
   @Column({nullable: true})
-  counter?: string;
+  counter?: number;
 
   @Column()
   maxFollowerValue?: number;
 
   @Column()
   ownerId?: number;
+
+  @Column({default: false})
+  isFinished?: boolean;
 
   @ManyToMany(() => User, user => user.clientGroups)
   users: User[];
