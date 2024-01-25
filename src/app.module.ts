@@ -13,6 +13,8 @@ import { DataSource } from 'typeorm';
 import { TypeOrmConfigService } from './database/typeorm-config.service';
 import { WalletBotModule } from './wallet-bot/wallet-bot.module';
 import {ApiModule} from './api/api.module';
+import {EthereumModule} from './ethereum/ethereum.module';
+import {EventsModule} from './events/events.module';
 
 const sessions = new LocalSession({ database: 'sessions.json' });
 
@@ -39,8 +41,10 @@ const sessions = new LocalSession({ database: 'sessions.json' });
       },
       inject: [ConfigService],
     }),
-    WalletBotModule,
+    EventsModule,
     ApiModule,
+    EthereumModule,
+    WalletBotModule
   ],
 })
 export class AppModule {}
