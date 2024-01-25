@@ -215,10 +215,16 @@ export class EthereumService implements OnModuleInit {
 
     if (!transactionDetails.isBuyTransaction) {
       // This is a sell transaction
-      alertMessage = `🔴Sell transaction\n\nAddress [${addressShortcut}](${addressLink}) sold ${transactionDetails.sellTokenAmount} [${transactionDetails.sellToken}](${contractLink}) for ${transactionDetails.buyTokenAmount} ${transactionDetails.buyToken}. For more detailed information, follow this [link](${explorerLink}).`;
+      alertMessage = `🔴Sell transaction\n\nAddress [${addressShortcut}](${addressLink})` +
+        `sold ${transactionDetails.sellTokenAmount} [${transactionDetails.sellToken}](${contractLink})` +
+        `for ${transactionDetails.buyTokenAmount} ${transactionDetails.buyToken}.` +
+        `For more detailed information, follow this [link](${explorerLink}).`;
     } else {
       // This is a buy transaction
-      alertMessage = `🟢Buy transaction\n\nAddress [${addressShortcut}](${addressLink}) bought ${transactionDetails.buyTokenAmount} [${transactionDetails.buyToken}](${contractLink}) for ${transactionDetails.sellTokenAmount} ${transactionDetails.sellToken}. For more detailed information, follow this [link](${explorerLink}).`;
+      alertMessage = `🟢Buy transaction\n\nAddress [${addressShortcut}](${addressLink}) ` +
+        `bought ${transactionDetails.buyTokenAmount} [${transactionDetails.buyToken}](${contractLink}) ` +
+        `for ${transactionDetails.sellTokenAmount} ${transactionDetails.sellToken}. ` +
+        `For more detailed information, follow this [link](${explorerLink}).`;
     }
 
     this.walletBotService.sendMessageToAllUsers(alertMessage);
