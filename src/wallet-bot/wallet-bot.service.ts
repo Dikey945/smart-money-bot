@@ -63,9 +63,11 @@ export class WalletBotService {
       return [];
     }
     return await this.userRepository.createQueryBuilder("user")
-      .leftJoinAndSelect("user.clientGroups", "clientGroup")
-      .where("clientGroup.id IN (:...groupIds)", { groupIds })
+      .leftJoin("user.clientGroups", "clientGroup")
+      .select(["user.id", "user.chatId"]) // select only columns needed
+      // other query parts
       .groupBy("user.id")
+      // .addGroupBy("clientGroup.id") // If needed
       .having("COUNT(DISTINCT clientGroup.id) = :groupCount", { groupCount: groupIds.length })
       .getMany();
   }

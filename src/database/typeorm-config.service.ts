@@ -8,13 +8,13 @@ export class TypeOrmConfigService implements TypeOrmOptionsFactory {
 
   createTypeOrmOptions(): TypeOrmModuleOptions | Promise<TypeOrmModuleOptions> {
     return {
-      type: this.configService.get('database.type') || 'postgres',
+      type: this.configService.get('database.type'),
       url: this.configService.get('database.url'),
-      host: this.configService.get('database.host') || 'localhost',
-      port: this.configService.get('database.port') || 5432,
-      username: this.configService.get('database.username') || 'postgres',
-      password: this.configService.get('database.password') || '121312',
-      database: this.configService.get('database.name') || 'bot_api',
+      host: this.configService.get('database.host'),
+      port: this.configService.get('database.port'),
+      username: this.configService.get('database.username'),
+      password: this.configService.get('database.password'),
+      database: this.configService.get('database.name'),
       synchronize: this.configService.get('database.synchronize'),
       dropSchema: false,
       keepConnectionAlive: true,

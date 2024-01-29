@@ -38,7 +38,6 @@ export class EthereumService implements OnModuleInit {
   ) {
 
     this.provider = new ethers.WebSocketProvider(`wss://eth-goerli.g.alchemy.com/v2/${this.API_KEY}`);
-    // this.mainnetProvider = new ethers.WebSocketProvider('wss://eth-mainnet.g.alchemy.com/v2/0XGuNqbwCgTVCsJsXFEMl72x1wt7f4J4');
   }
 
   async onModuleInit() {
@@ -47,20 +46,48 @@ export class EthereumService implements OnModuleInit {
     addresses.forEach(address => this.addAddress(address));
 
     // Start listening to transactions
-    this.provider.on('pending', (txHash) => {
-      this.provider.getTransaction(txHash).then(async (transaction) => {
-        if (transaction && (this.monitoredAddresses.has(transaction.from) || this.monitoredAddresses.has(transaction.to))) {
-          // await this.provider.waitForTransaction(txHash, 3);
-          this.checkTransaction(txHash);
-        }
-      }).catch(error => console.error(error));
-    });
+    this.listenForTransactions();
+  }
+
+
+  listenForTransactions() {
+    // Remove existing listener to avoid duplicates
+    this.provider.removeListener('pending', this.pendingTransactionHandler);
+
+    // Add new listener
+    console.log("Adding listener")
+    this.provider.on('pending', this.pendingTransactionHandler);
+    console.log('Listenere added')
+    console.log(this.monitoredAddresses)
+  }
+
+  pendingTransactionHandler = async (txHash) => {
+    try {
+      await this.handlePendingTransaction(txHash);
+    } catch (error) {
+      console.error('Error handling pending transaction:', error);
+      // Restart listening after a short delay
+      setTimeout(() => this.listenForTransactions(), 100);
+      console.log('Restarted listening for transactions.');
+    }
+  };
+
+  async handlePendingTransaction(txHash) {
+    const transaction = await this.provider.getTransaction(txHash);
+    if (transaction && (this.monitoredAddresses.has(transaction.from) || this.monitoredAddresses.has(transaction.to))) {
+      console.log(`Transaction detected: ${txHash}`);
+      await this.provider.waitForTransaction(txHash, 3);
+      this.checkTransaction(txHash);
+    }
   }
 
   private async retryWithExponentialBackoff<T>(operation: () => Promise<T>, maxRetries: number = 5, initialDelay: number = 1000): Promise<T> {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        return await operation();
+        console.log(`Attempt ${attempt + 1} of ${maxRetries}`)
+        const result = await operation();
+        console.log(`Operation succeeded after ${attempt + 1} attempts.`)
+        return result;
       } catch (error) {
         if (attempt === maxRetries - 1) {
           console.log(`Operation failed after ${maxRetries} retries.`);
@@ -130,35 +157,20 @@ export class EthereumService implements OnModuleInit {
   }
   private async checkTransaction(txHash: Hash): Promise<void> {
     if (this.transactionDetailsCache.has(txHash)) {
+      console.log("Transaction already processed")
       return; // Skip if already processed
     }
     try {
       const transaction = await this.retryWithExponentialBackoff(
-        () => this.mainnetProvider.getTransaction(txHash));
+        () => this.provider.getTransaction(txHash));
       if(this.isUniswapTransaction(transaction.data)) {
         console.log("Uniswap transaction detected")
       }
       const txn_url = `https://goerli.etherscan.io/tx/${txHash}`;
       const address = transaction.from.startsWith('0x') ? this.formatAddress(transaction.from) : transaction.from;
       const transactionDetails = await this.parseEtherscan(txn_url, address);
-      this.notifyUsers(transaction, transactionDetails);
-
-
-
-
-      if (transaction && (this.monitoredAddresses.has(transaction.from) || this.monitoredAddresses.has(transaction.to))) {
-        console.log(transaction)
-        const message = this.contractInterface.parseTransaction({
-          data: transaction.data,
-        })
-        console.log(message)
-        // console.log("message", message);
-        // this.notifyUsers(transaction, transactionDetails.data);
-        console.log('Transaction To address', transaction.to);
-        const abi = await this.fetchContractABI(transaction.to);
-        console.log('ABI', abi);
-
-      }
+      console.log({transactionDetails})
+      this.notifyUsers(transaction, transactionDetails.data);
     } catch (error) {
       console.error(`Failed to fetch transaction after retries: ${txHash}`, error);
     }
@@ -215,9 +227,9 @@ export class EthereumService implements OnModuleInit {
 
     if (!transactionDetails.isBuyTransaction) {
       // This is a sell transaction
-      alertMessage = `🔴Sell transaction\n\nAddress [${addressShortcut}](${addressLink})` +
-        `sold ${transactionDetails.sellTokenAmount} [${transactionDetails.sellToken}](${contractLink})` +
-        `for ${transactionDetails.buyTokenAmount} ${transactionDetails.buyToken}.` +
+      alertMessage = `🔴Sell transaction\n\nAddress [${addressShortcut}](${addressLink}) ` +
+        `sold ${transactionDetails.sellTokenAmount} [${transactionDetails.sellToken}](${contractLink}) ` +
+        `for ${transactionDetails.buyTokenAmount} ${transactionDetails.buyToken}. ` +
         `For more detailed information, follow this [link](${explorerLink}).`;
     } else {
       // This is a buy transaction
