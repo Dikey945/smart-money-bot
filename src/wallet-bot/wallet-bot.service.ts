@@ -31,26 +31,57 @@ export class WalletBotService {
   ) {}
 
   async sendMessageToAllUsers(message: string): Promise<void> {
-    const users = await this.userRepository.find(); // Fetch all users
+    const eligibleUsers = await this.retrieveUsersForNotification(); // Fetch all users
+    const batchSize = 100; // Set batch size
+    const delay = 500; // Delay in milliseconds
 
-    users.forEach(user => {
-      // Assuming each user has a 'chatId' or similar field
-      this.sendMessage(user.chatId, message);
-    });
+    for (let i = 0; i < eligibleUsers.length; i += batchSize) {
+      const batch = eligibleUsers.slice(i, i + batchSize);
+
+      await Promise.all(batch.map(user => {
+        return this.sendMessage(user.chatId, message).catch(error => {
+          console.error(`Failed to send message to user ${user.chatId}:`, error);
+          // Handle error or log for retry
+        });
+      }));
+
+      if (i + batchSize < eligibleUsers.length) {
+        await new Promise(resolve => setTimeout(resolve, delay)); // Delay for next batch
+      }
+    }
   }
 
-  sendMessage(chatId: number, message: string): void {
-    try {
-      this.bot.telegram.sendMessage(
+  async retrieveUsersForNotification(): Promise<User[]> {
+    const groupsToFollowList = await this.clientGroupRepository.find({
+      where: {
+        isFinished: false,
+      },
+      select: ['id'],
+    });
+    const groupIds = groupsToFollowList.map((group) => group.id);
+    if (!groupIds.length) {
+      return [];
+    }
+    return await this.userRepository.createQueryBuilder("user")
+      .leftJoin("user.clientGroups", "clientGroup")
+      .select(["user.id", "user.chatId"]) // select only columns needed
+      // other query parts
+      .groupBy("user.id")
+      // .addGroupBy("clientGroup.id") // If needed
+      .having("COUNT(DISTINCT clientGroup.id) = :groupCount", { groupCount: groupIds.length })
+      .getMany();
+  }
+
+  sendMessage(chatId: number, message: string): Promise<void> {
+    return this.bot.telegram.sendMessage(
         chatId,
         message,
         {
           parse_mode: 'Markdown',
           disable_web_page_preview: true,
-        });
-    } catch (e) {
+        }).then(() => {}).catch(e => {
       console.log(e);
-    }
+    });
   }
 
   async createUser(user: any, chat: any): Promise<User> {

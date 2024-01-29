@@ -17,7 +17,7 @@ export class User extends EntityHelper {
   @Column()
   chatId?: number;
 
-  @Column()
+  @Column({nullable: true})
   isPremium?: boolean;
 
   @ManyToMany(() => ClientGroup)

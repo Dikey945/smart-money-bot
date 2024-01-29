@@ -15,6 +15,7 @@ import { WalletBotModule } from './wallet-bot/wallet-bot.module';
 import {ApiModule} from './api/api.module';
 import {EthereumModule} from './ethereum/ethereum.module';
 import {EventsModule} from './events/events.module';
+import databaseConfig from './config/database.config';
 
 const sessions = new LocalSession({ database: 'sessions.json' });
 
@@ -23,7 +24,7 @@ const sessions = new LocalSession({ database: 'sessions.json' });
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env', '.env.development'],
-      load: [botConfig],
+      load: [botConfig, databaseConfig],
     }),
     TypeOrmModule.forRootAsync({
       useClass: TypeOrmConfigService,
