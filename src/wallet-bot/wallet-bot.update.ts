@@ -3,7 +3,7 @@ import {Action, Command, InjectBot, On, Start, Update} from 'nestjs-telegraf';
 import { Telegraf } from 'telegraf';
 import { Context } from '../types/types';
 import {createWelcomeMessage} from './utils/welcome-message';
-import {confirmFollowButtons, followButtons} from './wallet-bot-buttons';
+import {confirmFollowButtons, followButtons, subscribeButtons} from './wallet-bot-buttons';
 
 @Update()
 export class WalletBotUpdate {
@@ -25,6 +25,7 @@ export class WalletBotUpdate {
     if (channels) {
       await ctx.reply(welcomeMessage, followButtons(channels));
     }
+    await ctx.reply('Не забудь про платну підписку', subscribeButtons());
   }
 
   @Action(/join_(.+)/)
@@ -68,6 +69,13 @@ export class WalletBotUpdate {
     const result = await this.walletBotService.checkUserFollowAllChannels(this.bot, ctx.from.id);
     console.log(result);
     await ctx.reply('check');
+  }
+
+  @On('text')
+  subscribeCommand(ctx: Context) {
+    if('text' in ctx.message && ctx.message.text === 'Підписатися') {
+      this.walletBotService.startSubscription(ctx.chat.id);
+    }
   }
 
   @On('message')

@@ -26,7 +26,8 @@
     "migration:create": "npm run typeorm -- migration:create",
     "migration:run": "npm run typeorm -- --dataSource=src/database/data-source.ts migration:run",
     "migration:revert": "npm run typeorm -- --dataSource=src/database/data-source.ts migration:revert",
-    "schema:drop": "npm run typeorm -- --dataSource=src/database/data-source.ts schema:drop"
+    "schema:drop": "npm run typeorm -- --dataSource=src/database/data-source.ts schema:drop",
+    "seed:run": "ts-node -r tsconfig-paths/register ./src/database/seed/run-seed.ts"
   },
   "dependencies": {
     "@0x/0x-parser": "^1.0.2",
@@ -44,6 +45,7 @@
     "axios": "^1.6.5",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
+    "csv-parser": "^3.0.0",
     "ethers": "^6.9.0",
     "lodash": "^4.17.21",
     "nestjs-telegraf": "^2.7.0",
@@ -53,6 +55,7 @@
     "socket.io": "^4.7.2",
     "telegraf": "^4.12.2",
     "telegraf-session-local": "^2.1.1",
+    "tronweb": "^5.3.1",
     "typeorm": "^0.3.12",
     "viem": "^2.4.0"
   },

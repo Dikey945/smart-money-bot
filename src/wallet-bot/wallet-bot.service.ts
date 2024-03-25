@@ -3,12 +3,11 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "../entities/user.entity";
 import { Repository } from "typeorm";
 import { Context, Telegraf } from 'telegraf';
-import { ChatMember } from '../types/types';
-import {ExtraPromoteChatMember} from 'telegraf/typings/telegram-types';
 import {ClientGroup} from '../entities/client-group.entity';
 import {ConfigService} from '@nestjs/config';
 import {EventsGateway} from '../events/events.gateway';
 import {InjectBot} from 'nestjs-telegraf';
+import {TronService} from '../tron-payments/tron.service';
 
 
 @Injectable()
@@ -28,6 +27,9 @@ export class WalletBotService {
 
     @InjectBot()
     private readonly bot: Telegraf<Context>,
+
+    @Inject(forwardRef(() => TronService))
+    private tronService: TronService,
   ) {}
 
   async sendMessageToAllUsers(message: string): Promise<void> {
@@ -213,6 +215,20 @@ export class WalletBotService {
       return result.link;
     } catch (e) {
       console.log(e);
+      return null;
+    }
+  }
+
+  async startSubscription(chatId: number): Promise<any> {
+    const depositWallet = await this.tronService.createTrxRandomWallet();
+    const depositWalletAddress = depositWallet?.address?.base58;
+    await this.sendMessage(chatId, `Ваша адреса для поповнення: ${depositWalletAddress}`);
+    const listener = await this.tronService.listenForDeposit(depositWalletAddress);
+    if (listener) {
+      await this.sendMessage(chatId, `Ви поповнили свій баланс`);
+      return depositWalletAddress;
+    } else {
+      await this.sendMessage(chatId, `Ви не поповнили свій баланс`);
       return null;
     }
   }

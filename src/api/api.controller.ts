@@ -25,4 +25,14 @@ export class ApiController {
   async createAddress(@Body() body: any) {
     return this.apiService.addAddress(body.address, body.description);
   }
+
+  @Get('/add-seeds')
+  async addUsersFromCsv () {
+    return this.apiService.addUsersFromCsv();
+  }
+
+  @Get('/addresses')
+  async getAddressCount() {
+    return this.apiService.getAddressCount();
+  }
 }
