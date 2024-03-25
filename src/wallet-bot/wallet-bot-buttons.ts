@@ -15,3 +15,10 @@ export const  confirmFollowButtons = (channelId: number) => {
     { columns: 2 },
   );
 }
+
+export const subscribeButtons = () => {
+  return Markup.keyboard(
+    [Markup.button.text('Підписатися')],
+    { columns: 1 },
+  );
+}

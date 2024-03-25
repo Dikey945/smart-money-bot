@@ -3,29 +3,22 @@ import { ethers } from 'ethers';
 import {EventsGateway} from '../events/events.gateway';
 import {ApiService} from '../api/api.service';
 import {WalletBotService} from '../wallet-bot/wallet-bot.service';
-import {routerAbi, uniswapAbi} from './utils/uniswap.abi';
+import {uniswapAbi} from './utils/uniswap.abi';
 import {ConfigService} from '@nestjs/config';
 import {HttpService} from '@nestjs/axios';
-import {lastValueFrom, Observable} from 'rxjs';
-import {AxiosResponse} from 'axios';
-const abiDecoder = require('abi-decoder');
-// import { AddressService } from './address.service'; // Service to interact with addresses in your database
-import { parseSwap } from '@0x/0x-parser'
-import {Hash} from 'viem';
+import {lastValueFrom} from 'rxjs';
 
 @Injectable()
 export class EthereumService implements OnModuleInit {
   private provider: ethers.WebSocketProvider;
   private mainnetProvider: ethers.WebSocketProvider;
   private monitoredAddresses: Set<string> = new Set();
+  private processedBlocksCache: Set<number> = new Set();
   private contractInterface = new ethers.Interface(uniswapAbi)
   private API_KEY = this.configService.get<string>('bot.apiKeyMainnet');
   private API_KEY_ETHERSCAN = this.configService.get<string>('bot.apiKeyEtherscan');
-  private abiCoder: ethers.AbiCoder = new ethers.AbiCoder()
-  private abIDecoder = abiDecoder
-  private eth = ethers
   private transactionDetailsCache = new Map<string, any>();
-  private EXCHANGE_PROXY_ABI_URL = "https://raw.githubusercontent.com/0xProject/protocol/development/packages/contract-artifacts/artifacts/IZeroEx.json"
+  private httpProvider: ethers.Provider;
 
   constructor(
     private eventsGateway: EventsGateway,
@@ -37,16 +30,50 @@ export class EthereumService implements OnModuleInit {
 
   ) {
 
-    this.provider = new ethers.WebSocketProvider(`wss://eth-goerli.g.alchemy.com/v2/${this.API_KEY}`);
+    this.provider = new ethers.WebSocketProvider(`wss://eth-mainnet.g.alchemy.com/v2/${this.API_KEY}`);
+    this.httpProvider = new ethers.JsonRpcProvider('https://eth-mainnet.alchemyapi.io/v2/' + this.API_KEY);
   }
 
   async onModuleInit() {
     // Fetch initial list of addresses from the database on module initialization
     const addresses = await this.apiService.getAllAddresses();
     addresses.forEach(address => this.addAddress(address));
+    this.provider.on('block', async (blockNumber) => {
+      // Check if the block has already been processed
+      if (this.processedBlocksCache.has(blockNumber)) {
+        console.log(`Block ${blockNumber} already processed. Skipping...`);
+        return; // Skip processing this block
+      }
 
-    // Start listening to transactions
-    this.listenForTransactions();
+      try {
+        // Retrieve the block with its transactions
+        const block = await this.provider.getBlock(blockNumber, true);
+        // Use Promise.all to fetch details of all transactions in parallel for efficiency
+        const transactions = block.prefetchedTransactions
+
+
+        // Iterate over each transaction to check for monitored addresses
+        transactions.forEach(async (transaction) => {
+          // console.log(transaction.from)
+          // console.log(this.monitoredAddresses.has(transaction.from))
+          if (
+            transaction
+            && transaction.from
+            && transaction.to
+            && (this.monitoredAddresses.has(transaction?.from.toLowerCase()) || this.monitoredAddresses.has(transaction?.to.toLowerCase()))) {
+            console.log(`Transaction detected in block ${blockNumber}: ${transaction.hash}`);
+            await this.provider.waitForTransaction(transaction.hash, 3);
+            // Process the transaction as before
+            this.checkTransaction(transaction.hash);
+          }
+        });
+
+        // Add the block number to the cache to avoid re-processing in the future
+        this.processedBlocksCache.add(blockNumber);
+      } catch (error) {
+        console.error(`Error processing block ${blockNumber}:`, error);
+      }
+    });
   }
 
 
@@ -74,19 +101,24 @@ export class EthereumService implements OnModuleInit {
 
   async handlePendingTransaction(txHash) {
     const transaction = await this.provider.getTransaction(txHash);
-    if (transaction && (this.monitoredAddresses.has(transaction.from) || this.monitoredAddresses.has(transaction.to))) {
+    if (
+        transaction
+        && (this.monitoredAddresses.has(transaction.from) || this.monitoredAddresses.has(transaction.to))
+    ) {
       console.log(`Transaction detected: ${txHash}`);
       await this.provider.waitForTransaction(txHash, 3);
       this.checkTransaction(txHash);
     }
   }
 
-  private async retryWithExponentialBackoff<T>(operation: () => Promise<T>, maxRetries: number = 5, initialDelay: number = 1000): Promise<T> {
+  private async retryWithExponentialBackoff<T>(
+      operation: () => Promise<T>,
+      maxRetries: number = 5,
+      initialDelay: number = 1000
+  ): Promise<T> {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        console.log(`Attempt ${attempt + 1} of ${maxRetries}`)
         const result = await operation();
-        console.log(`Operation succeeded after ${attempt + 1} attempts.`)
         return result;
       } catch (error) {
         if (attempt === maxRetries - 1) {
@@ -102,7 +134,9 @@ export class EthereumService implements OnModuleInit {
   async fetchContractABI(contractAddress: string) {
     console.log(contractAddress)
     const etherscanApiKey = this.configService.get<string>('bot.apiKeyEtherscan');
-    const url = `https://api.etherscan.io/api?module=contract&action=getabi&address=${contractAddress}&apikey=${etherscanApiKey}`;
+    const url = 'https://api.etherscan.io/'+
+      'api?module=contract&action=getabi' +
+      `&address=${contractAddress}&apikey=${etherscanApiKey}`;
     console.log(url)
 
     try {
@@ -119,7 +153,8 @@ export class EthereumService implements OnModuleInit {
   }
 
   async fetchTransactionDetails(txHash: string) {
-    const url = `https://api-goerli.etherscan.io/api?module=proxy&action=eth_getTransactionByHash&txhash=${txHash}&apikey=${this.API_KEY_ETHERSCAN}`;
+    const url = 'https://api-goerli.etherscan.io/' +
+    `api?module=proxy&action=eth_getTransactionByHash&txhash=${txHash}&apikey=${this.API_KEY_ETHERSCAN}`;
 
     try {
       const response = await this.httpService.axiosRef.get(url);
@@ -155,7 +190,7 @@ export class EthereumService implements OnModuleInit {
 
     console.log(decodedPath)
   }
-  private async checkTransaction(txHash: Hash): Promise<void> {
+  private async checkTransaction(txHash: string): Promise<void> {
     if (this.transactionDetailsCache.has(txHash)) {
       console.log("Transaction already processed")
       return; // Skip if already processed
@@ -166,10 +201,10 @@ export class EthereumService implements OnModuleInit {
       if(this.isUniswapTransaction(transaction.data)) {
         console.log("Uniswap transaction detected")
       }
-      const txn_url = `https://goerli.etherscan.io/tx/${txHash}`;
+      const txn_url = `https://etherscan.io/tx/${txHash}`;
       const address = transaction.from.startsWith('0x') ? this.formatAddress(transaction.from) : transaction.from;
       const transactionDetails = await this.parseEtherscan(txn_url, address);
-      console.log({transactionDetails})
+      console.log(transactionDetails.data)
       this.notifyUsers(transaction, transactionDetails.data);
     } catch (error) {
       console.error(`Failed to fetch transaction after retries: ${txHash}`, error);
@@ -181,7 +216,7 @@ export class EthereumService implements OnModuleInit {
       txn_url: txnUrl,
       address: formattedAddress
     };
-    const observable = this.httpService.post('http://127.0.0.1:5000/parse-etherscan', body);
+    const observable = this.httpService.post('http://127.0.0.1:5001/parse-etherscan', body);
     return lastValueFrom(observable); // Convert the Observable to a Promise
   }
 
@@ -217,10 +252,10 @@ export class EthereumService implements OnModuleInit {
 
   private notifyUsers(transaction: ethers.TransactionResponse, transactionDetails: TransactionDetails): void {
     const txHash = transaction.hash;
-    const explorerLink = `https://goerli.etherscan.io/tx/${txHash}`;
+    const explorerLink = `https://etherscan.io/tx/${txHash}`;
     const addressShortcut = `${transaction.from.slice(0, 5)}...${transaction.from.slice(-5)}`;
-    const addressLink = `https://goerli.etherscan.io/address/${transaction.from}`;
-    const contractLink = `https://goerli.etherscan.io/address/${transactionDetails.tokenContract}`;
+    const addressLink = `https://etherscan.io/address/${transaction.from}`;
+    const contractLink = `https://etherscan.io/address/${transactionDetails.tokenContract}`;
 
 
     let alertMessage = "";

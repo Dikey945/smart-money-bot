@@ -7,6 +7,12 @@ export class Address extends EntityHelper {
   @Index()
   address?: string;
 
-  @Column()
+  @Column({nullable: true})
   description?: string;
+
+  @Column({nullable: true})
+  winRate?: number;
+
+  @Column({nullable: true})
+  PnL?: number;
 }

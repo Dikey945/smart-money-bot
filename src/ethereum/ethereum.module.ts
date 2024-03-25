@@ -15,7 +15,7 @@ import {HttpModule} from '@nestjs/axios';
     forwardRef(() => ApiModule),
     EventsModule,
     WalletBotModule,
-    HttpModule
+    HttpModule,
   ],
   providers: [EthereumService],
   exports: [EthereumService],
